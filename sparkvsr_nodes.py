@@ -481,9 +481,16 @@ class SparkVSR_LoadPipeline:
         if auto_download and _DOWNLOADER_OK:
             token = hf_token.strip() or None
             ensure_sparkvsr_weights(model_path_obj, token=token)
-            # Also ensure the prompt embedding is available
+            # Try the dedicated prompt-embedding directory first; the file may
+            # also live inside the pipeline download (snapshot_download puts
+            # the whole repo there, including any prompt_embeddings/ subfolder).
             prompt_emb_dir = _SPARKVSR_ROOT / DEFAULT_PROMPT_EMB_DIR
             ensure_prompt_embeddings(prompt_emb_dir, token=token)
+            # Secondary: ensure from checkpoint folder itself (HF snapshot
+            # places the whole repo there, so prompt_embeddings/ may be inside).
+            _inline_emb_dir = model_path_obj / "prompt_embeddings"
+            if _inline_emb_dir.is_dir():
+                ensure_prompt_embeddings(_inline_emb_dir, token=token)
         elif auto_download and not _DOWNLOADER_OK:
             logger.warning(
                 "[SparkVSR] auto_download is enabled but model_downloader "
@@ -498,11 +505,29 @@ class SparkVSR_LoadPipeline:
         logger.info(f"[SparkVSR] Loading pipeline from {model_path} …")
         torch_dtype = _str_to_dtype(dtype)
 
-        pipe = CogVideoXImageToVideoPipeline.from_pretrained(
-            model_path,
-            torch_dtype=torch_dtype,
-            low_cpu_mem_usage=True,
-        )
+        try:
+            pipe = CogVideoXImageToVideoPipeline.from_pretrained(
+                model_path,
+                torch_dtype=torch_dtype,
+                low_cpu_mem_usage=True,
+            )
+        except OSError as exc:
+            _msg = str(exc)
+            if "config.json" in _msg or "model_index.json" in _msg:
+                raise RuntimeError(
+                    f"[SparkVSR] Pipeline loading failed — the checkpoint directory is "
+                    f"incomplete or corrupt:\n  {model_path}\n\n"
+                    "This usually happens when only transformer weights were placed there "
+                    "manually instead of a full pipeline download.\n"
+                    "Fix: delete the directory and re-run with auto_download=True (default), "
+                    "or download the complete pipeline from HuggingFace:\n"
+                    "  huggingface-cli download JiongzeYu/SparkVSR "
+                    f"--local-dir \"{model_path}\""
+                ) from exc
+            raise
+
+        # Stash the model path so the upscaler can locate prompt embeddings
+        pipe._sparkvsr_model_path = model_path_obj
         pipe.scheduler = CogVideoXDPMScheduler.from_config(
             pipe.scheduler.config, timestep_spacing="trailing"
         )
@@ -885,8 +910,19 @@ class SparkVSR_VideoUpscaler:
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
             ".safetensors"
         )
+        # Search order:
+        #   1. pretrained_weights/prompt_embeddings/  (dedicated dir)
+        #   2. <model_path>/prompt_embeddings/         (inside pipeline snapshot)
         ep_path = _SPARKVSR_ROOT / DEFAULT_PROMPT_EMB_DIR
         ep_file = ep_path / _emb_filename
+        if not ep_file.is_file():
+            # Check inside the pipeline download directory (snapshot_download
+            # puts the whole HF repo there, including prompt_embeddings/).
+            _pipeline_path = getattr(pipeline, "_sparkvsr_model_path", None)
+            if _pipeline_path is not None:
+                _inline = Path(_pipeline_path) / "prompt_embeddings" / _emb_filename
+                if _inline.is_file():
+                    ep_file = _inline
         if not ep_file.is_file() and _DOWNLOADER_OK:
             try:
                 ensure_prompt_embeddings(ep_path)

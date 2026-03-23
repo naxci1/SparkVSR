@@ -82,6 +82,22 @@ def _is_valid_checkpoint_dir(path: Path) -> bool:
     return False
 
 
+def _is_valid_pipeline_dir(path: Path) -> bool:
+    """
+    Return True only if `path` is a **complete** diffusers pipeline directory.
+
+    A proper pipeline directory must have ``model_index.json`` at its root.
+    Without it ``CogVideoXImageToVideoPipeline.from_pretrained`` falls back to
+    treating the directory as a single-model checkpoint and looks for
+    ``config.json`` in the root — causing the cryptic
+    "Error no file named config.json found in directory …" error.
+
+    Having only ``*.safetensors`` files (e.g. manually placed transformer
+    weights) is *not* sufficient.
+    """
+    return path.is_dir() and (path / "model_index.json").is_file()
+
+
 def _download_repo(
     repo_id: str,
     local_dir: Path,
@@ -171,8 +187,13 @@ def ensure_sparkvsr_weights(
     """
     Ensure the SparkVSR Stage-2 checkpoint is present at `local_dir`.
     Downloads from HuggingFace if not found.
+
+    Uses ``_is_valid_pipeline_dir`` (requires ``model_index.json``) rather than
+    the looser ``_is_valid_checkpoint_dir``.  A directory that contains only
+    manually-placed ``.safetensors`` weights is **not** a valid pipeline and
+    will trigger a (re)download of the complete checkpoint.
     """
-    if _is_valid_checkpoint_dir(local_dir):
+    if _is_valid_pipeline_dir(local_dir):
         logger.info(f"[SparkVSR] SparkVSR weights found at {local_dir}")
         return
 
@@ -240,7 +261,7 @@ def ensure_all_models(
     ensure_sparkvsr_weights(sparkvsr_dir, token=token, hf_hub=hf)
 
     # Check if sparkvsr_dir is a complete pipeline (has model_index.json)
-    if not (sparkvsr_dir / "model_index.json").is_file():
+    if not _is_valid_pipeline_dir(sparkvsr_dir):
         # SparkVSR checkpoint only has adapted weights — need base model
         if base_model_dir is not None:
             ensure_base_model(base_model_dir, token=token, hf_hub=hf)
