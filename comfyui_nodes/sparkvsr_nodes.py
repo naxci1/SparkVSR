@@ -55,6 +55,18 @@ _SPARKVSR_ROOT = Path(__file__).resolve().parent.parent
 if str(_SPARKVSR_ROOT) not in sys.path:
     sys.path.insert(0, str(_SPARKVSR_ROOT))
 
+# Import auto-downloader (lives alongside this file)
+try:
+    from .model_downloader import (
+        ensure_sparkvsr_weights,
+        ensure_prompt_embeddings,
+        DEFAULT_SPARKVSR_DIR,
+        DEFAULT_PROMPT_EMB_DIR,
+    )
+    _DOWNLOADER_OK = True
+except ImportError:
+    _DOWNLOADER_OK = False
+
 # ---------------------------------------------------------------------------
 # In-memory pipeline cache  {cache_key: pipeline_object}
 # ---------------------------------------------------------------------------
@@ -350,6 +362,9 @@ class SparkVSR_LoadPipeline:
     text encoder).  The VAE is loaded here too but its tiling config is set by
     SparkVSR_LoadVAE.
 
+    Automatically downloads missing models from HuggingFace when
+    `auto_download` is enabled.
+
     Equivalent of the 'SeedVR2 (Down)Load DiT Model' node.
     """
 
@@ -395,7 +410,31 @@ class SparkVSR_LoadPipeline:
                         "tooltip": "Cache the loaded model in memory between runs.",
                     },
                 ),
-            }
+                "auto_download": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": (
+                            "Automatically download SparkVSR weights from HuggingFace "
+                            "if they are not found at model_path. "
+                            "Requires internet access and huggingface_hub."
+                        ),
+                    },
+                ),
+            },
+            "optional": {
+                "hf_token": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": (
+                            "HuggingFace access token (optional). "
+                            "Only needed for private/gated models. "
+                            "Leave blank to use the public repo."
+                        ),
+                    },
+                ),
+            },
         }
 
     RETURN_TYPES  = ("SPARKVSR_PIPELINE",)
@@ -411,6 +450,8 @@ class SparkVSR_LoadPipeline:
         device: str,
         offload_device: str,
         cache_model: bool,
+        auto_download: bool = True,
+        hf_token: str = "",
     ):
         if not _DIFFUSERS_OK:
             raise RuntimeError(
@@ -419,7 +460,26 @@ class SparkVSR_LoadPipeline:
             )
 
         # Normalise path (Windows backslash support)
-        model_path = str(Path(model_path))
+        model_path_obj = Path(model_path)
+        # Relative paths are anchored to the SparkVSR repo root
+        if not model_path_obj.is_absolute():
+            model_path_obj = _SPARKVSR_ROOT / model_path_obj
+        model_path = str(model_path_obj)
+
+        # ------------------------------------------------------------------
+        # Auto-download: fetch from HuggingFace if the checkpoint is missing
+        # ------------------------------------------------------------------
+        if auto_download and _DOWNLOADER_OK:
+            token = hf_token.strip() or None
+            ensure_sparkvsr_weights(model_path_obj, token=token)
+            # Also ensure the prompt embedding is available
+            prompt_emb_dir = _SPARKVSR_ROOT / DEFAULT_PROMPT_EMB_DIR
+            ensure_prompt_embeddings(prompt_emb_dir, token=token)
+        elif auto_download and not _DOWNLOADER_OK:
+            logger.warning(
+                "[SparkVSR] auto_download is enabled but model_downloader "
+                "could not be imported.  Skipping auto-download."
+            )
 
         cache_key = f"{model_path}|{dtype}|{device}|{offload_device}"
         if cache_model and cache_key in _PIPELINE_CACHE:
@@ -808,10 +868,22 @@ class SparkVSR_VideoUpscaler:
                     ref_frame_tensors.append(rf)
 
         # ------ Empty prompt embedding ------
+        # Use DEFAULT_PROMPT_EMB_DIR constant so path is always consistent
+        # with the auto-downloader.  If the file is still missing, attempt
+        # a lightweight download now.
         empty_prompt_embedding = None
-        ep_path = _SPARKVSR_ROOT / "pretrained_weights" / "prompt_embeddings"
-        ep_file = ep_path / "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.safetensors"
-        if ep_file.exists() and _SAFETENSORS_OK:
+        _emb_filename = (
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            ".safetensors"
+        )
+        ep_path = _SPARKVSR_ROOT / DEFAULT_PROMPT_EMB_DIR
+        ep_file = ep_path / _emb_filename
+        if not ep_file.is_file() and _DOWNLOADER_OK:
+            try:
+                ensure_prompt_embeddings(ep_path)
+            except Exception as _dl_err:
+                logger.warning(f"[SparkVSR] Could not auto-download prompt embedding: {_dl_err}")
+        if ep_file.is_file() and _SAFETENSORS_OK:
             try:
                 empty_prompt_embedding = load_safetensors(str(ep_file))["prompt_embedding"]
             except Exception as e:

@@ -1,14 +1,17 @@
 # ============================================================
 # SparkVSR — Inference requirements (minimal, no training deps)
-# Install:  pip install -r requirements.txt
+#
+# IMPORTANT: Install PyTorch with CUDA BEFORE running pip install:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# Then install the rest:
+#   pip install -r requirements.txt
+#
 # For training deps see requirements_train.txt
 # ============================================================
 
-# ---- PyTorch (CUDA 12.4 – default for RTX 40xx/50xx) ----
-# Install manually for your CUDA version if this line fails:
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-torch>=2.5.0
-torchvision>=0.20.0
+# ---- PyTorch — install manually above; listed here for pip freeze compat ----
+# torch>=2.5.0    # Do NOT uncomment; install via index-url above.
+# torchvision>=0.20.0
 
 # ---- Core diffusion / model libraries ----
 diffusers>=0.30.0
