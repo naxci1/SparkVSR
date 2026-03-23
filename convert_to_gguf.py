@@ -14,31 +14,41 @@ Supported quantization types:
 
 Usage:
     # Convert the SparkVSR Stage-2 transformer to 8-bit GGUF
-    # (works whether you point to the full pipeline dir OR the transformer/ sub-folder)
+    # (auto-detects the transformer/ sub-folder from the pipeline root)
     python convert_to_gguf.py \\
-        --model_dir checkpoints/sparkvsr-s2/ckpt-500-sft \\
-        --output    sparkvsr_q8_0.gguf \\
+        --model_dir  checkpoints/sparkvsr-s2/ckpt-500-sft \\
+        --subfolder  transformer \\
+        --output     sparkvsr_transformer_q8_0.gguf \\
         --quant_type q8_0
 
-    # Equivalently, point directly to the transformer sub-folder:
+    # Convert the text encoder to 8-bit GGUF
     python convert_to_gguf.py \\
-        --model_dir checkpoints/sparkvsr-s2/ckpt-500-sft/transformer \\
-        --output    sparkvsr_q8_0.gguf \\
+        --model_dir  checkpoints/sparkvsr-s2/ckpt-500-sft \\
+        --subfolder  text_encoder \\
+        --output     sparkvsr_text_encoder_q8_0.gguf \\
         --quant_type q8_0
 
-    # Convert only the base CogVideoX transformer
+    # You can also point directly to any sub-folder (no --subfolder needed):
     python convert_to_gguf.py \\
-        --model_dir pretrained_weights/CogVideoX1.5-5B-I2V \\
-        --output    cogvideox_transformer_f16.gguf \\
+        --model_dir  checkpoints/sparkvsr-s2/ckpt-500-sft/transformer \\
+        --output     sparkvsr_transformer_q8_0.gguf \\
+        --quant_type q8_0
+
+    # Convert the base CogVideoX transformer
+    python convert_to_gguf.py \\
+        --model_dir  pretrained_weights/CogVideoX1.5-5B-I2V \\
+        --subfolder  transformer \\
+        --output     cogvideox_transformer_f16.gguf \\
         --quant_type f16
 
 Requirements:
     pip install gguf safetensors torch
 
 Notes:
-    - The GGUF file contains the transformer weights only.
-    - VAE and text-encoder weights remain in safetensors format;
-      they are small enough that quantizing them gives little benefit.
+    - Sharded safetensors (e.g. diffusion_pytorch_model-00001-of-00005.safetensors)
+      are merged automatically — no manual pre-merging is required.
+    - Each pipeline component (transformer, text_encoder, …) should be
+      converted separately and produces its own GGUF file.
     - After conversion, use the GGUF file with a compatible inference
       engine (e.g. ComfyUI + ComfyUI-GGUF extension) or load it back
       via the loader below for custom pipelines.
@@ -65,31 +75,52 @@ logger = logging.getLogger(__name__)
 # Helper: load all safetensors / pytorch bin files in a directory
 # ---------------------------------------------------------------------------
 
-def _resolve_weight_dir(model_dir: Path) -> Path:
+def _resolve_weight_dir(model_dir: Path, subfolder: Optional[str] = None) -> Path:
     """
     Return the directory that actually contains the weight files.
 
     When a full diffusers pipeline is downloaded with snapshot_download the
-    transformer weights live in a ``transformer/`` sub-folder rather than at
-    the pipeline root.  This function transparently handles both layouts:
+    individual component weights live in sub-folders (e.g. ``transformer/``,
+    ``text_encoder/``) rather than at the pipeline root.  This function
+    transparently handles all layouts:
 
-      • Full pipeline dir  (contains ``model_index.json``) → redirects to
-        ``<model_dir>/transformer/`` if that sub-folder has weight files.
-      • Transformer dir    (contains weight files directly) → returned as-is.
+      • ``--subfolder`` provided → use ``<model_dir>/<subfolder>/`` directly
+        (if it has weight files) or fall back to ``model_dir`` itself.
+      • Already pointing at a directory with weight files → returned as-is.
+      • Full pipeline dir → tries ``transformer/`` as default subfolder.
     """
+    _HAS_WEIGHTS = lambda d: (
+        bool(list(d.glob("*.safetensors"))) or bool(list(d.glob("pytorch_model*.bin")))
+    )
+
+    # Explicit subfolder requested via --subfolder flag.
+    if subfolder:
+        sub_dir = model_dir / subfolder
+        if sub_dir.is_dir() and _HAS_WEIGHTS(sub_dir):
+            logger.info(f"  Using sub-folder: {sub_dir}")
+            return sub_dir
+        # subfolder dir exists but has no weights — let caller emit error.
+        if sub_dir.is_dir():
+            return sub_dir
+        # subfolder doesn't exist at all
+        logger.error(
+            f"Sub-folder '{subfolder}' not found inside: {model_dir}\n"
+            f"  Available sub-folders: "
+            + ", ".join(d.name for d in model_dir.iterdir() if d.is_dir())
+        )
+        sys.exit(1)
+
     # Already pointing directly at weight files — use as-is.
-    if list(model_dir.glob("*.safetensors")) or list(model_dir.glob("pytorch_model*.bin")):
+    if _HAS_WEIGHTS(model_dir):
         return model_dir
 
-    # Full pipeline layout: try the transformer/ sub-folder.
+    # Full pipeline layout: try the transformer/ sub-folder as default.
     transformer_dir = model_dir / "transformer"
-    if transformer_dir.is_dir() and (
-        list(transformer_dir.glob("*.safetensors")) or
-        list(transformer_dir.glob("pytorch_model*.bin"))
-    ):
+    if transformer_dir.is_dir() and _HAS_WEIGHTS(transformer_dir):
         logger.info(
-            f"  Detected full pipeline directory — using transformer sub-folder: "
-            f"{transformer_dir}"
+            f"  Detected full pipeline directory — defaulting to transformer "
+            f"sub-folder: {transformer_dir}\n"
+            f"  Tip: use --subfolder text_encoder to convert the text encoder instead."
         )
         return transformer_dir
 
@@ -97,9 +128,14 @@ def _resolve_weight_dir(model_dir: Path) -> Path:
     return model_dir
 
 
-def _load_state_dict(model_dir: Path) -> Dict[str, np.ndarray]:
-    """Load all weights from a model directory into CPU numpy arrays."""
-    model_dir = _resolve_weight_dir(model_dir)
+def _load_state_dict(model_dir: Path, subfolder: Optional[str] = None) -> Dict[str, np.ndarray]:
+    """Load all weights from a model directory into CPU numpy arrays.
+
+    Handles both single-file and sharded safetensors layouts automatically.
+    All shards matching ``*.safetensors`` are loaded and merged into a single
+    dict — no manual pre-merging is required.
+    """
+    model_dir = _resolve_weight_dir(model_dir, subfolder=subfolder)
     state: Dict[str, np.ndarray] = {}
 
     # Prefer safetensors (faster, safer)
@@ -130,9 +166,10 @@ def _load_state_dict(model_dir: Path) -> Dict[str, np.ndarray]:
 
     logger.error(
         f"No .safetensors or .bin weight files found in: {model_dir}\n"
-        "  • If you downloaded the full pipeline, the weights should be in a\n"
-        "    'transformer/' sub-folder — this is detected automatically.\n"
-        "    Make sure the download completed successfully.\n"
+        "  • If you downloaded the full pipeline, specify which component to convert:\n"
+        "      --subfolder transformer    (video transformer)\n"
+        "      --subfolder text_encoder   (text encoder)\n"
+        "  • Or point --model_dir directly to the sub-folder that contains the weights.\n"
         "  • Re-download with:\n"
         "      huggingface-cli download JiongzeYu/SparkVSR "
         "--local-dir checkpoints/sparkvsr-s2/ckpt-500-sft"
@@ -373,9 +410,20 @@ def parse_args() -> argparse.Namespace:
         "--model_dir", type=Path, required=False, default=None,
         help=(
             "Path to the model directory. Accepts either a full pipeline "
-            "directory (with model_index.json, e.g. checkpoints/sparkvsr-s2/ckpt-500-sft) "
-            "or the transformer sub-folder directly. "
-            "The transformer sub-folder is detected automatically."
+            "directory (e.g. checkpoints/sparkvsr-s2/ckpt-500-sft) "
+            "or a component sub-folder directly "
+            "(e.g. checkpoints/sparkvsr-s2/ckpt-500-sft/transformer). "
+            "Use --subfolder to select a component when pointing at the pipeline root."
+        ),
+    )
+    parser.add_argument(
+        "--subfolder", type=str, default=None,
+        metavar="NAME",
+        help=(
+            "Component sub-folder to convert when --model_dir is a full pipeline "
+            "directory.  Common values: 'transformer', 'text_encoder'. "
+            "Defaults to 'transformer' when omitted and no weight files exist "
+            "at the pipeline root."
         ),
     )
     parser.add_argument(
@@ -419,7 +467,7 @@ def main() -> None:
     logger.info(f"Output path     : {output}")
 
     logger.info("Loading weights …")
-    state_dict = _load_state_dict(model_dir)
+    state_dict = _load_state_dict(model_dir, subfolder=args.subfolder)
     logger.info(f"Loaded {len(state_dict)} tensors.")
 
     write_gguf(output, state_dict, args.quant_type)
