@@ -44,6 +44,19 @@ try:
 except ImportError:
     logger.warning("Could not import finetune.utils.ref_utils. API features may disabled.")
 
+# Auto-downloader lives at the repo root (same directory as this script)
+_SCRIPT_DIR = Path(__file__).resolve().parent
+try:
+    from model_downloader import (
+        ensure_sparkvsr_weights,
+        ensure_prompt_embeddings,
+        DEFAULT_SPARKVSR_DIR,
+        DEFAULT_PROMPT_EMB_DIR,
+    )
+    _DOWNLOADER_OK = True
+except ImportError:
+    _DOWNLOADER_OK = False
+
 # 0 ~ 1
 to_tensor = transforms.ToTensor()
 video_exts = ['.mp4', '.avi', '.mov', '.mkv']
@@ -631,8 +644,44 @@ def main():
     parser.add_argument("--pisa_sd_model_path", type=str, default=None, help="Path to PiSA-SR Stable Diffusion base model")
     parser.add_argument("--pisa_chkpt_path", type=str, default=None, help="Path to PiSA-SR pisa_sr.pkl weight")
     parser.add_argument("--pisa_gpu", type=str, default="0", help="GPU ID to run PiSA-SR on")
-    
+
+    # Auto-download flags
+    parser.add_argument(
+        "--auto_download",
+        action="store_true",
+        default=True,
+        help="Automatically download missing model weights from HuggingFace. "
+             "Pass --no_auto_download to disable.",
+    )
+    parser.add_argument(
+        "--no_auto_download",
+        dest="auto_download",
+        action="store_false",
+        help="Disable automatic model downloading.",
+    )
+    parser.add_argument(
+        "--hf_token",
+        type=str,
+        default=None,
+        help="HuggingFace access token for private/gated models (optional).",
+    )
+
     args = parser.parse_args()
+
+    # ------------------------------------------------------------------
+    # Auto-download: fetch missing models from HuggingFace before loading
+    # ------------------------------------------------------------------
+    if args.auto_download and _DOWNLOADER_OK:
+        _token = args.hf_token or None
+        model_dir = Path(args.model_path)
+        ensure_sparkvsr_weights(model_dir, token=_token)
+        prompt_emb_dir = _SCRIPT_DIR / DEFAULT_PROMPT_EMB_DIR
+        ensure_prompt_embeddings(prompt_emb_dir, token=_token)
+    elif args.auto_download and not _DOWNLOADER_OK:
+        logger.warning(
+            "auto_download requested but model_downloader.py could not be imported. "
+            "Skipping.  Install huggingface_hub and ensure model_downloader.py is at the repo root."
+        )
 
     # Setup
     if args.dtype == "float16":
@@ -641,15 +690,29 @@ def main():
         dtype = torch.bfloat16
     else:
         dtype = torch.float32
-        
+
     set_seed(args.seed)
-    
+
     # Load Empty Prompt
     empty_prompt_embedding = None
-    empty_prompt_path = Path("pretrained_models/prompt_embeddings/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.safetensors")
-    if empty_prompt_path.exists():
-        empty_prompt_embedding = load_file(str(empty_prompt_path))["prompt_embedding"]
-    
+    # Prefer the auto-downloaded location (pretrained_weights/prompt_embeddings/).
+    # The secondary path (pretrained_models/...) is a legacy fallback for
+    # installations created before the directory was renamed from
+    # 'pretrained_models' to 'pretrained_weights'.
+    _prompt_emb_candidates = [
+        _SCRIPT_DIR / DEFAULT_PROMPT_EMB_DIR /
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.safetensors",
+        Path("pretrained_models/prompt_embeddings/"
+             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.safetensors"),
+    ]
+    for _ep in _prompt_emb_candidates:
+        if _ep.is_file():
+            try:
+                empty_prompt_embedding = load_file(str(_ep))["prompt_embedding"]
+                logger.info(f"Loaded prompt embedding from {_ep}")
+            except Exception as _e:
+                logger.warning(f"Could not load prompt embedding from {_ep}: {_e}")
+            break
     # Load Video List
     video_files = []
     if os.path.isfile(args.input_dir):

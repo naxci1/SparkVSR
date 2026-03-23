@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1340" height="760" viewBox="0 0 1340 760" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="nodeGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d4a7a;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#1e3359;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="nodeGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#7a3a2d;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#59291e;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="nodeGrad3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d7a4a;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#1e593a;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="nodeGrad4" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6a2d7a;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#4e1e59;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="nodeGrad5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d6a7a;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#1e4e59;stop-opacity:1"/>
+    </linearGradient>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#f0a050"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#c060f0"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#50d070"/>
+    </marker>
+    <filter id="shadow">
+      <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1340" height="760" fill="url(#bg)"/>
+  <rect width="1340" height="760" fill="url(#bg)" rx="12"/>
+
+  <!-- Title -->
+  <text x="670" y="38" text-anchor="middle" fill="#e8d5b0" font-size="22" font-weight="bold">SparkVSR — ComfyUI Video Upscaling Workflow</text>
+  <text x="670" y="62" text-anchor="middle" fill="#8899aa" font-size="13">Clone repo into ComfyUI/custom_nodes/SparkVSR · Drag &amp; drop workflows/sparkvsr_video_upscale.json into ComfyUI</text>
+
+  <!-- ═══ NODE 1: VHS_LoadVideo ═══ -->
+  <!-- Body -->
+  <rect x="20" y="90" width="250" height="300" rx="8" fill="url(#nodeGrad1)" stroke="#4a7ab8" stroke-width="1.5" filter="url(#shadow)"/>
+  <!-- Header -->
+  <rect x="20" y="90" width="250" height="32" rx="8" fill="#4a7ab8"/>
+  <rect x="20" y="108" width="250" height="14" fill="#4a7ab8"/>
+  <text x="145" y="111" text-anchor="middle" fill="white" font-size="13" font-weight="bold">📹 VHS_LoadVideo</text>
+  <!-- Outputs -->
+  <circle cx="270" cy="150" r="7" fill="#f0a050" stroke="#c07820" stroke-width="1.5"/>
+  <text x="258" y="154" text-anchor="end" fill="#f0a050" font-size="11" font-weight="bold">IMAGE</text>
+  <circle cx="270" cy="178" r="7" fill="#aaaaaa" stroke="#888" stroke-width="1.5"/>
+  <text x="258" y="182" text-anchor="end" fill="#aaa" font-size="11">frame_count</text>
+  <circle cx="270" cy="206" r="7" fill="#aaaaaa" stroke="#888" stroke-width="1.5"/>
+  <text x="258" y="210" text-anchor="end" fill="#aaa" font-size="11">audio</text>
+  <circle cx="270" cy="234" r="7" fill="#aaaaaa" stroke="#888" stroke-width="1.5"/>
+  <text x="258" y="238" text-anchor="end" fill="#aaa" font-size="11">video_info</text>
+  <!-- Params -->
+  <text x="36" y="270" fill="#ccd8e8" font-size="11">video:  your_video.mp4</text>
+  <text x="36" y="290" fill="#ccd8e8" font-size="11">force_rate:  0 (use source fps)</text>
+  <text x="36" y="310" fill="#ccd8e8" font-size="11">frame_load_cap:  0 (all frames)</text>
+  <text x="36" y="330" fill="#ccd8e8" font-size="11">select_every_nth:  1</text>
+  <text x="36" y="350" fill="#ccd8e8" font-size="11">force_size:  Disabled</text>
+  <text x="36" y="370" fill="#8899aa" font-size="10">Requires: ComfyUI-VideoHelperSuite</text>
+
+  <!-- ═══ NODE 2: SparkVSR_LoadPipeline ═══ -->
+  <rect x="20" y="440" width="250" height="270" rx="8" fill="url(#nodeGrad2)" stroke="#b86040" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="20" y="440" width="250" height="32" rx="8" fill="#b86040"/>
+  <rect x="20" y="458" width="250" height="14" fill="#b86040"/>
+  <text x="145" y="461" text-anchor="middle" fill="white" font-size="13" font-weight="bold">🔥 SparkVSR Load Pipeline</text>
+  <!-- Output -->
+  <circle cx="270" cy="498" r="7" fill="#c060f0" stroke="#8030b0" stroke-width="1.5"/>
+  <text x="258" y="502" text-anchor="end" fill="#c060f0" font-size="11" font-weight="bold">pipeline</text>
+  <!-- Params -->
+  <text x="36" y="530" fill="#e8d0c8" font-size="11">model_path:  checkpoints/sparkvsr-s2/</text>
+  <text x="36" y="548" fill="#8899aa" font-size="10">              ckpt-500-sft</text>
+  <text x="36" y="568" fill="#e8d0c8" font-size="11">dtype:  bfloat16</text>
+  <text x="36" y="588" fill="#e8d0c8" font-size="11">device:  cuda:0</text>
+  <text x="36" y="608" fill="#e8d0c8" font-size="11">offload_device:  cpu</text>
+  <text x="36" y="628" fill="#e8d0c8" font-size="11">cache_model:  ✅ true</text>
+  <text x="36" y="648" fill="#e8d0c8" font-size="11">auto_download:  ✅ true</text>
+  <text x="36" y="670" fill="#8899aa" font-size="10">↳ downloads weights if missing</text>
+  <text x="36" y="690" fill="#e8d0c8" font-size="11">hf_token:  (leave blank)</text>
+
+  <!-- ═══ NODE 3: SparkVSR_LoadVAE ═══ -->
+  <rect x="310" y="440" width="260" height="270" rx="8" fill="url(#nodeGrad3)" stroke="#40b870" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="310" y="440" width="260" height="32" rx="8" fill="#40b870"/>
+  <rect x="310" y="458" width="260" height="14" fill="#40b870"/>
+  <text x="440" y="461" text-anchor="middle" fill="white" font-size="13" font-weight="bold">🎛️ SparkVSR Configure VAE</text>
+  <!-- Input -->
+  <circle cx="310" cy="498" r="7" fill="#c060f0" stroke="#8030b0" stroke-width="1.5"/>
+  <text x="322" y="502" fill="#c060f0" font-size="11" font-weight="bold">pipeline</text>
+  <!-- Output -->
+  <circle cx="570" cy="498" r="7" fill="#c060f0" stroke="#8030b0" stroke-width="1.5"/>
+  <text x="558" y="502" text-anchor="end" fill="#c060f0" font-size="11" font-weight="bold">pipeline</text>
+  <!-- Params -->
+  <text x="326" y="530" fill="#c8e8d0" font-size="11">encode_tiled:  false</text>
+  <text x="326" y="550" fill="#c8e8d0" font-size="11">encode_tile_size:  704</text>
+  <text x="326" y="570" fill="#c8e8d0" font-size="11">encode_tile_overlap:  32</text>
+  <text x="326" y="590" fill="#c8e8d0" font-size="11">decode_tiled:  ✅ true   ← 16 GB VRAM</text>
+  <text x="326" y="610" fill="#c8e8d0" font-size="11">decode_tile_size:  736</text>
+  <text x="326" y="630" fill="#c8e8d0" font-size="11">decode_tile_overlap:  32</text>
+  <text x="326" y="650" fill="#c8e8d0" font-size="11">enable_slicing:  ✅ true</text>
+  <text x="326" y="670" fill="#c8e8d0" font-size="11">tile_debug:  false</text>
+
+  <!-- ═══ NODE 4: SparkVSR_VideoUpscaler ═══ -->
+  <rect x="620" y="90" width="290" height="590" rx="8" fill="url(#nodeGrad4)" stroke="#9050c0" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="620" y="90" width="290" height="32" rx="8" fill="#9050c0"/>
+  <rect x="620" y="108" width="290" height="14" fill="#9050c0"/>
+  <text x="765" y="111" text-anchor="middle" fill="white" font-size="13" font-weight="bold">⚡ SparkVSR Video Upscaler</text>
+  <!-- Inputs -->
+  <circle cx="620" cy="150" r="7" fill="#f0a050" stroke="#c07820" stroke-width="1.5"/>
+  <text x="632" y="154" fill="#f0a050" font-size="11" font-weight="bold">image</text>
+  <circle cx="620" cy="180" r="7" fill="#c060f0" stroke="#8030b0" stroke-width="1.5"/>
+  <text x="632" y="184" fill="#c060f0" font-size="11" font-weight="bold">pipeline</text>
+  <!-- Output -->
+  <circle cx="910" cy="150" r="7" fill="#50d070" stroke="#309050" stroke-width="1.5"/>
+  <text x="898" y="154" text-anchor="end" fill="#50d070" font-size="11" font-weight="bold">image</text>
+  <!-- Params -->
+  <text x="636" y="222" fill="#d8c8e8" font-size="11">seed:  313</text>
+  <text x="636" y="244" fill="#d8c8e8" font-size="11">upscale:  4×</text>
+  <text x="636" y="266" fill="#d8c8e8" font-size="11">max_resolution:  0 (no cap)</text>
+  <text x="636" y="288" fill="#d8c8e8" font-size="11">batch_size:  49  ← 16 GB VRAM</text>
+  <text x="636" y="310" fill="#d8c8e8" font-size="11">uniform_batch_size:  ✅ true</text>
+  <text x="636" y="332" fill="#d8c8e8" font-size="11">color_correction:  lab</text>
+  <text x="636" y="354" fill="#d8c8e8" font-size="11">temporal_overlap:  8</text>
+  <text x="636" y="376" fill="#d8c8e8" font-size="11">prepend_frames:  0</text>
+  <text x="636" y="398" fill="#d8c8e8" font-size="11">ref_mode:  no_ref</text>
+  <text x="636" y="420" fill="#d8c8e8" font-size="11">ref_guidance_scale:  1.0</text>
+  <text x="636" y="442" fill="#d8c8e8" font-size="11">tile_size_h:  0 (no spatial tiling)</text>
+  <text x="636" y="464" fill="#d8c8e8" font-size="11">tile_size_w:  0</text>
+  <text x="636" y="486" fill="#d8c8e8" font-size="11">overlap_h:  32</text>
+  <text x="636" y="508" fill="#d8c8e8" font-size="11">overlap_w:  32</text>
+  <text x="636" y="530" fill="#d8c8e8" font-size="11">sr_noise_step:  399</text>
+  <text x="636" y="552" fill="#d8c8e8" font-size="11">enable_debug:  false</text>
+  <rect x="630" y="566" width="270" height="44" rx="6" fill="#3a1e50" stroke="#7040a0" stroke-width="1"/>
+  <text x="765" y="582" text-anchor="middle" fill="#c090f0" font-size="10">💡 For high-VRAM (≥22 GB): set batch_size=81,</text>
+  <text x="765" y="598" text-anchor="middle" fill="#c090f0" font-size="10">offload_device=none, encode_tiled=false</text>
+  <text x="636" y="636" fill="#d8c8e8" font-size="11" font-style="italic">Input:  BHWC float32 [0,1]  (video frames)</text>
+  <text x="636" y="654" fill="#d8c8e8" font-size="11" font-style="italic">Output: BHWC float32 [0,1]  (upscaled frames)</text>
+
+  <!-- ═══ NODE 5: VHS_VideoCombine ═══ -->
+  <rect x="960" y="90" width="360" height="280" rx="8" fill="url(#nodeGrad5)" stroke="#40a0b8" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="960" y="90" width="360" height="32" rx="8" fill="#40a0b8"/>
+  <rect x="960" y="108" width="360" height="14" fill="#40a0b8"/>
+  <text x="1140" y="111" text-anchor="middle" fill="white" font-size="13" font-weight="bold">💾 VHS_VideoCombine</text>
+  <!-- Inputs -->
+  <circle cx="960" cy="150" r="7" fill="#50d070" stroke="#309050" stroke-width="1.5"/>
+  <text x="972" y="154" fill="#50d070" font-size="11" font-weight="bold">images</text>
+  <circle cx="960" cy="178" r="7" fill="#aaaaaa" stroke="#888" stroke-width="1.5"/>
+  <text x="972" y="182" fill="#aaa" font-size="11">audio (optional)</text>
+  <!-- Output -->
+  <circle cx="1320" cy="150" r="7" fill="#aaaaaa" stroke="#888" stroke-width="1.5"/>
+  <text x="1308" y="154" text-anchor="end" fill="#aaa" font-size="11">Filenames</text>
+  <!-- Params -->
+  <text x="976" y="214" fill="#c8e0e8" font-size="11">frame_rate:  8.0 fps</text>
+  <text x="976" y="234" fill="#c8e0e8" font-size="11">loop_count:  0</text>
+  <text x="976" y="254" fill="#c8e0e8" font-size="11">filename_prefix:  SparkVSR_output</text>
+  <text x="976" y="274" fill="#c8e0e8" font-size="11">format:  video/h264-mp4</text>
+  <text x="976" y="294" fill="#c8e0e8" font-size="11">save_output:  ✅ true</text>
+  <text x="976" y="334" fill="#8899aa" font-size="10">Requires: ComfyUI-VideoHelperSuite</text>
+  <text x="976" y="352" fill="#8899aa" font-size="10">Output saved to ComfyUI/output/</text>
+
+  <!-- ═══ ARROWS ═══ -->
+  <!-- IMAGE: VHS_LoadVideo → VideoUpscaler (image input) -->
+  <path d="M 277 150 C 450 150, 450 150, 613 150"
+        fill="none" stroke="#f0a050" stroke-width="2.5"
+        marker-end="url(#arrowOrange)"/>
+  <text x="450" y="143" text-anchor="middle" fill="#f0a050" font-size="10">IMAGE</text>
+
+  <!-- PIPELINE: LoadPipeline → LoadVAE -->
+  <path d="M 277 498 C 293 498, 293 498, 303 498"
+        fill="none" stroke="#c060f0" stroke-width="2.5"
+        marker-end="url(#arrowPurple)"/>
+
+  <!-- PIPELINE: LoadVAE → VideoUpscaler (pipeline input) -->
+  <path d="M 577 498 C 600 498, 600 180, 613 180"
+        fill="none" stroke="#c060f0" stroke-width="2.5"
+        marker-end="url(#arrowPurple)"/>
+  <text x="598" y="360" text-anchor="middle" fill="#c060f0" font-size="10" transform="rotate(-90, 598, 360)">SPARKVSR_PIPELINE</text>
+
+  <!-- IMAGE: VideoUpscaler → VHS_VideoCombine -->
+  <path d="M 917 150 C 937 150, 937 150, 953 150"
+        fill="none" stroke="#50d070" stroke-width="2.5"
+        marker-end="url(#arrowGreen)"/>
+  <text x="935" y="143" text-anchor="middle" fill="#50d070" font-size="10">IMAGE</text>
+
+  <!-- ═══ FOOTER ═══ -->
+  <rect x="20" y="720" width="1300" height="30" rx="6" fill="#0d1117" opacity="0.7"/>
+  <text x="670" y="739" text-anchor="middle" fill="#778899" font-size="11">
+    SparkVSR — Interactive Video Super-Resolution · github.com/naxci1/SparkVSR · Workflow: drag workflows/sparkvsr_video_upscale.json into ComfyUI
+  </text>
+</svg>
