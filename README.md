@@ -21,6 +21,53 @@
 
 > 💡 **Your ⭐ star means a lot to us and helps support the continuous development of this project!**
 
+---
+
+## 🚀 Quick Start (TL;DR)
+
+> Get SparkVSR running in 5 steps — no datasets or training required.
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/taco-group/SparkVSR
+cd SparkVSR
+
+# 2. Create and activate conda environment
+conda create -n sparkvsr python=3.10 -y
+conda activate sparkvsr
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Download the pre-trained SparkVSR model from HuggingFace
+#    (requires ~10 GB disk space)
+pip install huggingface_hub
+python - <<'EOF'
+from huggingface_hub import snapshot_download
+# Base model (place in pretrained_weights/)
+snapshot_download("zai-org/CogVideoX1.5-5B-I2V",
+                  local_dir="pretrained_weights/CogVideoX1.5-5B-I2V")
+# SparkVSR Stage-2 weights (place in checkpoints/)
+snapshot_download("JiongzeYu/SparkVSR",
+                  local_dir="checkpoints/sparkvsr-s2/ckpt-500-sft")
+EOF
+
+# 5. Run inference on your own video  (No-Ref mode — no keyframes needed)
+CUDA_VISIBLE_DEVICES=0 python sparkvsr_inference_script.py \
+    --input_dir  path/to/your/low_res_video.mp4 \
+    --model_path checkpoints/sparkvsr-s2/ckpt-500-sft \
+    --output_path results/my_video \
+    --is_vae_st \
+    --ref_mode   no_ref \
+    --upscale    4
+```
+
+**Output video** is saved to `results/my_video/`.
+
+> 💡 **16 GB VRAM?** Use `bash sparkvsr_inference_16gb.sh` (see [16 GB VRAM section](#vram16gb) below).
+
+---
+
 #### 📰 News
 
 - **2026.03.17:** This repo is released.🔥🔥🔥
@@ -97,6 +144,8 @@ pip install -r requirements.txt
 1. [Models](#models)
 1. [Training](#training)
 1. [Inference](#inference)
+1. [16 GB VRAM Optimization](#vram16gb)
+1. [Model Files & GGUF Conversion](#gguf)
 1. [Citation](#citation)
 1. [Acknowledgements](#acknowledgements)
 
@@ -319,6 +368,125 @@ To quantitatively evaluate the super-resolved videos, we provide a unified evalu
 > 3. Download the pre-trained weights specified in their repositories to their respective nested algorithm folders.
 
 Once the metrics are set up, you can simply run the unified evaluation script [`run_eval_all.sh`](./run_eval_all.sh) to calculate the scores. The evaluation results will be saved as `all_metrics_results.json` in your specified output directory.
+
+## <a name="vram16gb"></a>🎮 16 GB VRAM Optimization (RTX 50xx / 40xx)
+
+SparkVSR is built on a 5-billion-parameter video diffusion model.  
+By default, inference needs **~22 GB VRAM**.  
+With the optimizations below, it runs comfortably on **16 GB** (e.g. RTX 5080, RTX 4080).
+
+### ⚡ One-command solution
+
+```bash
+bash sparkvsr_inference_16gb.sh
+```
+
+This script enables all memory-saving flags automatically.  
+Edit `MODEL_PATH` and `--input_dir` at the top of the file before running.
+
+### 🔧 Manual flags explained
+
+| Flag | Effect | VRAM saved |
+|---|---|---|
+| `--is_cpu_offload` | Moves inactive pipeline components (transformer, VAE, text encoder) to CPU RAM between uses | ~8 GB |
+| `--is_vae_st` | Enables VAE **slicing** (frame-by-frame) and **tiling** (spatial patches) | ~2 GB |
+| `--chunk_len 49` | Processes video in 49-frame temporal chunks instead of the full sequence | ~3 GB |
+| `--tile_size_hw 480 854` | Processes video in 480×854 spatial tiles | ~2 GB |
+| `--dtype bfloat16` | Uses BF16 precision (native on RTX 40xx/50xx) | baseline |
+
+### 📋 Example command for 16 GB VRAM
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python sparkvsr_inference_script.py \
+    --input_dir  path/to/your/low_res_video.mp4 \
+    --model_path checkpoints/sparkvsr-s2/ckpt-500-sft \
+    --output_path results/my_video \
+    --ref_mode   no_ref \
+    --is_cpu_offload \
+    --is_vae_st \
+    --dtype      bfloat16 \
+    --chunk_len  49 \
+    --overlap_t  8 \
+    --tile_size_hw 480 854 \
+    --overlap_hw   32 32 \
+    --upscale    4
+```
+
+> ⚠️ **Trade-off:** CPU offloading increases inference time (slower CPU↔GPU transfers).  
+> If you have 20–24 GB VRAM, you can omit `--is_cpu_offload` and keep the other flags for a faster run.
+
+---
+
+## <a name="gguf"></a>📦 Model Files & GGUF Conversion
+
+### 🗂️ Model File Map
+
+SparkVSR uses three model components stored across two directories:
+
+| Directory | Component | Size (BF16) | Description |
+|---|---|---|---|
+| `pretrained_weights/CogVideoX1.5-5B-I2V/transformer/` | **Video Transformer** | ~10 GB | Core 5B-param diffusion model |
+| `pretrained_weights/CogVideoX1.5-5B-I2V/vae/` | **VAE** | ~1 GB | Encodes/decodes video frames |
+| `pretrained_weights/CogVideoX1.5-5B-I2V/text_encoder/` | **T5 Text Encoder** | ~4 GB | Encodes text prompts |
+| `checkpoints/sparkvsr-s1/ckpt-10000-sft/` | **SparkVSR Stage-1** | ~10 GB | Stage-1 fine-tuned transformer |
+| `checkpoints/sparkvsr-s2/ckpt-500-sft/` | **SparkVSR Stage-2** | ~10 GB | Final model (use this for inference) |
+
+All weight files are stored in **SafeTensors** format (`.safetensors`).
+
+To list all model files from the command line:
+
+```bash
+python convert_to_gguf.py --list_models
+```
+
+### 🔄 Converting Weights to GGUF
+
+GGUF is a quantized-weight file format that can **reduce the transformer from ~10 GB down to ~2.5–5 GB**, enabling inference on GPUs with less VRAM.
+
+**Step 1 — Install the GGUF dependency:**
+
+```bash
+pip install gguf
+```
+
+**Step 2 — Convert the SparkVSR Stage-2 transformer to 8-bit GGUF:**
+
+```bash
+python convert_to_gguf.py \
+    --model_dir checkpoints/sparkvsr-s2/ckpt-500-sft \
+    --output    sparkvsr_q8_0.gguf \
+    --quant_type q8_0
+```
+
+**Step 3 — (Optional) Convert just the base CogVideoX transformer:**
+
+```bash
+python convert_to_gguf.py \
+    --model_dir pretrained_weights/CogVideoX1.5-5B-I2V/transformer \
+    --output    cogvideox_f16.gguf \
+    --quant_type f16
+```
+
+### 📊 Quantization Options
+
+| `--quant_type` | Size (5B model) | Quality | Recommended for |
+|---|---|---|---|
+| `f32`  | ~20 GB | Lossless | Archival only |
+| `f16`  | ~10 GB | Lossless | Standard inference |
+| `bf16` | ~10 GB | Lossless | RTX 40xx / 50xx native |
+| `q8_0` | ~5 GB  | Near-lossless | **16 GB VRAM (recommended)** |
+| `q4_0` | ~2.5 GB | Slight quality drop | 8–12 GB VRAM |
+
+> 💡 **`q8_0` is the best balance** between quality and VRAM reduction for RTX 50xx.
+
+### ⚠️ GGUF Compatibility Note
+
+The generated GGUF files store the **raw quantized weights** in a portable format.  
+- They can be loaded with **ComfyUI + [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF)** extension.
+- Direct use with `llama.cpp` or `ollama` is **not supported** — those tools are designed for autoregressive language models and do not implement the video diffusion inference pipeline required by SparkVSR.
+- For a fully self-contained Python workflow, the GGUF weights can be de-quantized back to BF16 at load time.
+
+---
 
 ## <a name="citation"></a>📎 Citation
 
