@@ -430,7 +430,49 @@ Restart ComfyUI — the three SparkVSR nodes appear under the **SparkVSR** categ
 
 > 💡 **Auto-download**: On first run the **SparkVSR Load Pipeline** node will automatically download the SparkVSR weights (~5 GB) from HuggingFace if they are not found at the path you specify. Set `auto_download = True` (default) and point `model_path` at an empty or non-existent folder.
 
+---
+
+### 🔄 Ready-to-use Workflow
+
+A **pre-built, ready-to-use ComfyUI workflow** is included. Simply drag and drop it into ComfyUI:
+
+```
+workflows/sparkvsr_video_upscale.json
+```
+
+[![SparkVSR ComfyUI Workflow](assets/workflow_preview.svg)](workflows/sparkvsr_video_upscale.json)
+
+**Workflow node connections:**
+
+```
+VHS_LoadVideo ──[IMAGE]──────────────────────────────────► SparkVSR_VideoUpscaler ──[IMAGE]──► VHS_VideoCombine
+                                                                       ▲
+SparkVSR_LoadPipeline ──[SPARKVSR_PIPELINE]──► SparkVSR_LoadVAE ──[SPARKVSR_PIPELINE]──┘
+```
+
+**How to use:**
+
+1. Install [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) (required for VHS nodes)
+2. Drag `workflows/sparkvsr_video_upscale.json` into ComfyUI
+3. In **VHS_LoadVideo** → set `video` to your input video path
+4. In **SparkVSR_LoadPipeline** → set `model_path` (leave `auto_download = true` to fetch weights automatically on first run)
+5. Click **Queue Prompt** — the upscaled video is saved to `ComfyUI/output/`
+
+**Node reference:**
+
+| Node | Input | Output | Purpose |
+|------|-------|--------|---------|
+| VHS_LoadVideo | video file | IMAGE frames | Load video as a frame batch |
+| SparkVSR_LoadPipeline | — | SPARKVSR_PIPELINE | Load transformer + scheduler + VAE |
+| SparkVSR_LoadVAE | SPARKVSR_PIPELINE | SPARKVSR_PIPELINE | Configure VAE tiling for VRAM efficiency |
+| SparkVSR_VideoUpscaler | IMAGE + SPARKVSR_PIPELINE | IMAGE | Run 4× super-resolution |
+| VHS_VideoCombine | IMAGE frames | video file | Encode upscaled frames back to video |
+
+---
+
 ### Recommended settings for 16 GB VRAM (RTX 5070 Ti / 4080)
+
+> The default workflow is already configured for 16 GB VRAM. For ≥22 GB VRAM, set `batch_size=81`, `offload_device=none`, and `encode_tiled=false`.
 
 | Node | Setting | Value |
 |------|---------|-------|
@@ -440,7 +482,8 @@ Restart ComfyUI — the three SparkVSR nodes appear under the **SparkVSR** categ
 | Configure VAE | `decode_tile_size` | 736 |
 | Configure VAE | `enable_slicing` | ✅ True |
 | Video Upscaler | `batch_size` | 49 |
-| Video Upscaler | `tile_size_h` / `tile_size_w` | 480 / 854 |
+| Video Upscaler | `upscale` | 4 |
+| Video Upscaler | `color_correction` | `lab` |
 
 ---
 
