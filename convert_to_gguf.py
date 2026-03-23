@@ -14,14 +14,21 @@ Supported quantization types:
 
 Usage:
     # Convert the SparkVSR Stage-2 transformer to 8-bit GGUF
+    # (works whether you point to the full pipeline dir OR the transformer/ sub-folder)
     python convert_to_gguf.py \\
         --model_dir checkpoints/sparkvsr-s2/ckpt-500-sft \\
         --output    sparkvsr_q8_0.gguf \\
         --quant_type q8_0
 
+    # Equivalently, point directly to the transformer sub-folder:
+    python convert_to_gguf.py \\
+        --model_dir checkpoints/sparkvsr-s2/ckpt-500-sft/transformer \\
+        --output    sparkvsr_q8_0.gguf \\
+        --quant_type q8_0
+
     # Convert only the base CogVideoX transformer
     python convert_to_gguf.py \\
-        --model_dir pretrained_weights/CogVideoX1.5-5B-I2V/transformer \\
+        --model_dir pretrained_weights/CogVideoX1.5-5B-I2V \\
         --output    cogvideox_transformer_f16.gguf \\
         --quant_type f16
 
@@ -58,8 +65,41 @@ logger = logging.getLogger(__name__)
 # Helper: load all safetensors / pytorch bin files in a directory
 # ---------------------------------------------------------------------------
 
+def _resolve_weight_dir(model_dir: Path) -> Path:
+    """
+    Return the directory that actually contains the weight files.
+
+    When a full diffusers pipeline is downloaded with snapshot_download the
+    transformer weights live in a ``transformer/`` sub-folder rather than at
+    the pipeline root.  This function transparently handles both layouts:
+
+      • Full pipeline dir  (contains ``model_index.json``) → redirects to
+        ``<model_dir>/transformer/`` if that sub-folder has weight files.
+      • Transformer dir    (contains weight files directly) → returned as-is.
+    """
+    # Already pointing directly at weight files — use as-is.
+    if list(model_dir.glob("*.safetensors")) or list(model_dir.glob("pytorch_model*.bin")):
+        return model_dir
+
+    # Full pipeline layout: try the transformer/ sub-folder.
+    transformer_dir = model_dir / "transformer"
+    if transformer_dir.is_dir() and (
+        list(transformer_dir.glob("*.safetensors")) or
+        list(transformer_dir.glob("pytorch_model*.bin"))
+    ):
+        logger.info(
+            f"  Detected full pipeline directory — using transformer sub-folder: "
+            f"{transformer_dir}"
+        )
+        return transformer_dir
+
+    # Nothing found — return original so the caller can emit a clear error.
+    return model_dir
+
+
 def _load_state_dict(model_dir: Path) -> Dict[str, np.ndarray]:
     """Load all weights from a model directory into CPU numpy arrays."""
+    model_dir = _resolve_weight_dir(model_dir)
     state: Dict[str, np.ndarray] = {}
 
     # Prefer safetensors (faster, safer)
@@ -88,7 +128,15 @@ def _load_state_dict(model_dir: Path) -> Dict[str, np.ndarray]:
                 state[key] = val.float().numpy()
         return state
 
-    logger.error(f"No .safetensors or .bin weight files found in: {model_dir}")
+    logger.error(
+        f"No .safetensors or .bin weight files found in: {model_dir}\n"
+        "  • If you downloaded the full pipeline, the weights should be in a\n"
+        "    'transformer/' sub-folder — this is detected automatically.\n"
+        "    Make sure the download completed successfully.\n"
+        "  • Re-download with:\n"
+        "      huggingface-cli download JiongzeYu/SparkVSR "
+        "--local-dir checkpoints/sparkvsr-s2/ckpt-500-sft"
+    )
     sys.exit(1)
 
 
@@ -324,9 +372,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model_dir", type=Path, required=False, default=None,
         help=(
-            "Path to the model directory containing .safetensors or .bin files. "
-            "For the full CogVideoX base model point to the 'transformer/' sub-folder. "
-            "For SparkVSR checkpoints point directly to the checkpoint directory."
+            "Path to the model directory. Accepts either a full pipeline "
+            "directory (with model_index.json, e.g. checkpoints/sparkvsr-s2/ckpt-500-sft) "
+            "or the transformer sub-folder directly. "
+            "The transformer sub-folder is detected automatically."
         ),
     )
     parser.add_argument(
