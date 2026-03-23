@@ -24,6 +24,9 @@
 MODEL_PATH="checkpoints/sparkvsr-s2/ckpt-500-sft"
 
 # ---- Shared 16 GB optimization flags ----
+# --tile_size_hw 480 854: 16:9-ratio tiles (~480p per tile) that fit in 16 GB VRAM.
+#   480 height × 854 width ≈ standard 16:9 aspect ratio (854/480 ≈ 1.78).
+#   Adjust to 360 640 for GPUs with less headroom, or 720 1280 if VRAM allows.
 VRAM_FLAGS="--is_cpu_offload --is_vae_st --dtype bfloat16 --chunk_len 49 --overlap_t 8 --tile_size_hw 480 854 --overlap_hw 32 32"
 
 # ============================================================

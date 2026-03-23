@@ -130,8 +130,8 @@ def _quantize_q4_0(data: np.ndarray) -> np.ndarray:
     quant = np.round(blocks / scales).astype(np.int8).clip(-7, 7)
     # Pack two 4-bit values per byte.
     # GGML Q4_0 uses a bias of 8: values in [-7, 7] become [1, 15].
-    # Value 0 is reserved so that a zero block can be represented without
-    # ambiguity (all-zero packed bytes still decode correctly given scale=0).
+    # Value 0 is reserved as a sentinel; zero blocks are safely represented
+    # because `scales` is clamped to ≥ 1e-9 above (never truly zero).
     quant_uint = (quant + 8).astype(np.uint8)  # shift to [1, 15]; 0 is reserved
     packed = quant_uint[:, 0::2] | (quant_uint[:, 1::2] << 4)
     buf = bytearray()

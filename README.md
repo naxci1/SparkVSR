@@ -27,32 +27,39 @@
 
 > Get SparkVSR running in 5 steps — no datasets or training required.
 
+### Option A — Python venv (no conda required, works on Windows)
+
 ```bash
 # 1. Clone the repository
-git clone https://github.com/taco-group/SparkVSR
+git clone https://github.com/naxci1/SparkVSR
 cd SparkVSR
 
-# 2. Create and activate conda environment
-conda create -n sparkvsr python=3.10 -y
-conda activate sparkvsr
+# 2a. Create a Python virtual environment  (Python 3.10 or 3.11)
+# Windows:
+python -m venv .venv
+.venv\Scripts\activate
 
-# 3. Install dependencies
+# Linux / macOS:
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. Install PyTorch for your GPU (CUDA 12.4 — RTX 40xx / 50xx)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+
+# 4. Install SparkVSR dependencies (inference only)
 pip install -r requirements.txt
 
-# 4. Download the pre-trained SparkVSR model from HuggingFace
-#    (requires ~10 GB disk space)
-pip install huggingface_hub
-python - <<'EOF'
+# 5. Download pre-trained models  (~10 GB)
+python -c "
 from huggingface_hub import snapshot_download
-# Base model (place in pretrained_weights/)
-snapshot_download("zai-org/CogVideoX1.5-5B-I2V",
-                  local_dir="pretrained_weights/CogVideoX1.5-5B-I2V")
-# SparkVSR Stage-2 weights (place in checkpoints/)
-snapshot_download("JiongzeYu/SparkVSR",
-                  local_dir="checkpoints/sparkvsr-s2/ckpt-500-sft")
-EOF
+snapshot_download('zai-org/CogVideoX1.5-5B-I2V',
+                  local_dir='pretrained_weights/CogVideoX1.5-5B-I2V')
+snapshot_download('JiongzeYu/SparkVSR',
+                  local_dir='checkpoints/sparkvsr-s2/ckpt-500-sft')
+"
 
-# 5. Run inference on your own video  (No-Ref mode — no keyframes needed)
+# 6. Run inference on your own video  (No-Ref mode — no keyframes needed)
+# Linux / macOS:
 CUDA_VISIBLE_DEVICES=0 python sparkvsr_inference_script.py \
     --input_dir  path/to/your/low_res_video.mp4 \
     --model_path checkpoints/sparkvsr-s2/ckpt-500-sft \
@@ -60,11 +67,32 @@ CUDA_VISIBLE_DEVICES=0 python sparkvsr_inference_script.py \
     --is_vae_st \
     --ref_mode   no_ref \
     --upscale    4
+
+# Windows (PowerShell):
+python sparkvsr_inference_script.py `
+    --input_dir  path\to\your\low_res_video.mp4 `
+    --model_path checkpoints\sparkvsr-s2\ckpt-500-sft `
+    --output_path results\my_video `
+    --is_vae_st `
+    --ref_mode   no_ref `
+    --upscale    4
+```
+
+### Option B — conda
+
+```bash
+git clone https://github.com/naxci1/SparkVSR
+cd SparkVSR
+conda create -n sparkvsr python=3.10 -y
+conda activate sparkvsr
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+pip install -r requirements.txt
 ```
 
 **Output video** is saved to `results/my_video/`.
 
-> 💡 **16 GB VRAM?** Use `bash sparkvsr_inference_16gb.sh` (see [16 GB VRAM section](#vram16gb) below).
+> 💡 **16 GB VRAM (RTX 5070 Ti / 4080)?** Use `bash sparkvsr_inference_16gb.sh`  
+> or install the **ComfyUI nodes** (see [ComfyUI section](#comfyui) below).
 
 ---
 
@@ -115,28 +143,24 @@ Moreover, we demonstrate that SparkVSR is a generic interactive, keyframe-condit
 - ✅ Release pre-trained models.
 - ✅ Release training code.
 - ✅ Release project page.
-- ⬜ Release ComfyUI.
+- ✅ Release ComfyUI nodes.
 
 ## ⚙️ Dependencies
 
 - Python 3.10+
-- PyTorch >= 2.5.0
-- Diffusers
-- Other dependencies (see `requirements.txt`)
+- PyTorch >= 2.5.0 with CUDA 12.4
+- See `requirements.txt` for inference, `requirements_train.txt` for training.
 
 ```bash
-# Clone the github repo and go to the directory
-git clone https://github.com/taco-group/SparkVSR
-cd SparkVSR
+# PyTorch (CUDA 12.4 — RTX 40xx/50xx)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
-# Create and activate conda environment
-conda create -n sparkvsr python=3.10
-conda activate sparkvsr
-
-# Install all required dependencies
+# Inference only
 pip install -r requirements.txt
-```
 
+# Training (additional dependencies)
+pip install -r requirements_train.txt
+```
 
 ## 📖 Contents
 
@@ -144,6 +168,7 @@ pip install -r requirements.txt
 1. [Models](#models)
 1. [Training](#training)
 1. [Inference](#inference)
+1. [ComfyUI Nodes](#comfyui)
 1. [16 GB VRAM Optimization](#vram16gb)
 1. [Model Files & GGUF Conversion](#gguf)
 1. [Citation](#citation)
@@ -368,6 +393,51 @@ To quantitatively evaluate the super-resolved videos, we provide a unified evalu
 > 3. Download the pre-trained weights specified in their repositories to their respective nested algorithm folders.
 
 Once the metrics are set up, you can simply run the unified evaluation script [`run_eval_all.sh`](./run_eval_all.sh) to calculate the scores. The evaluation results will be saved as `all_metrics_results.json` in your specified output directory.
+
+---
+
+## <a name="comfyui"></a>🖥️ ComfyUI Nodes (SeedVR2.5-style)
+
+SparkVSR ships ComfyUI custom nodes with a layout identical to **SeedVR2.5**:
+
+| Node | Equivalent SeedVR2 node |
+|------|------------------------|
+| **SparkVSR Load Pipeline** | SeedVR2 (Down)Load DiT Model |
+| **SparkVSR Configure VAE** | SeedVR2 (Down)Load VAE Model |
+| **SparkVSR Video Upscaler** | SeedVR2 Video Upscaler |
+
+### Quick install
+
+```bash
+# Copy nodes into ComfyUI
+cp -r comfyui_nodes  /path/to/ComfyUI/custom_nodes/SparkVSR
+
+# Windows (PowerShell — Administrator):
+New-Item -ItemType Junction `
+    -Path "C:\ComfyUI\custom_nodes\SparkVSR" `
+    -Target "C:\path\to\SparkVSR\comfyui_nodes"
+
+# Install dependencies into ComfyUI's Python env
+pip install diffusers>=0.30.0 transformers>=4.40.0 accelerate safetensors einops sentencepiece
+```
+
+Restart ComfyUI — the three SparkVSR nodes appear under the **SparkVSR** category.
+
+### Recommended settings for 16 GB VRAM (RTX 5070 Ti / 4080)
+
+| Node | Setting | Value |
+|------|---------|-------|
+| Load Pipeline | `dtype` | `bfloat16` |
+| Load Pipeline | `offload_device` | `cpu` |
+| Configure VAE | `decode_tiled` | ✅ True |
+| Configure VAE | `decode_tile_size` | 736 |
+| Configure VAE | `enable_slicing` | ✅ True |
+| Video Upscaler | `batch_size` | 49 |
+| Video Upscaler | `tile_size_h` / `tile_size_w` | 480 / 854 |
+
+See [`comfyui_nodes/README.md`](./comfyui_nodes/README.md) for the full node reference and workflow examples.
+
+---
 
 ## <a name="vram16gb"></a>🎮 16 GB VRAM Optimization (RTX 50xx / 40xx)
 
