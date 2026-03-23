@@ -44,10 +44,9 @@ try:
 except ImportError:
     logger.warning("Could not import finetune.utils.ref_utils. API features may disabled.")
 
-# Auto-downloader (in comfyui_nodes/ next to this repo root)
+# Auto-downloader lives at the repo root (same directory as this script)
 _SCRIPT_DIR = Path(__file__).resolve().parent
 try:
-    sys.path.insert(0, str(_SCRIPT_DIR / "comfyui_nodes"))
     from model_downloader import (
         ensure_sparkvsr_weights,
         ensure_prompt_embeddings,
@@ -680,8 +679,8 @@ def main():
         ensure_prompt_embeddings(prompt_emb_dir, token=_token)
     elif args.auto_download and not _DOWNLOADER_OK:
         logger.warning(
-            "auto_download requested but model_downloader module is not available. "
-            "Skipping.  Install huggingface_hub and ensure comfyui_nodes/ is present."
+            "auto_download requested but model_downloader.py could not be imported. "
+            "Skipping.  Install huggingface_hub and ensure model_downloader.py is at the repo root."
         )
 
     # Setup

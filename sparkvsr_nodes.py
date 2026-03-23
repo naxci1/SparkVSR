@@ -50,12 +50,12 @@ try:
 except ImportError:
     _ROPE_OK = False
 
-# Add SparkVSR repo root to sys.path so finetune.utils can be imported
-_SPARKVSR_ROOT = Path(__file__).resolve().parent.parent
+# SparkVSR repo root — this file now lives at the repo root itself
+_SPARKVSR_ROOT = Path(__file__).resolve().parent
 if str(_SPARKVSR_ROOT) not in sys.path:
     sys.path.insert(0, str(_SPARKVSR_ROOT))
 
-# Import auto-downloader (lives alongside this file)
+# Import auto-downloader (lives alongside this file at the repo root)
 try:
     from .model_downloader import (
         ensure_sparkvsr_weights,
@@ -65,7 +65,16 @@ try:
     )
     _DOWNLOADER_OK = True
 except ImportError:
-    _DOWNLOADER_OK = False
+    try:
+        from model_downloader import (
+            ensure_sparkvsr_weights,
+            ensure_prompt_embeddings,
+            DEFAULT_SPARKVSR_DIR,
+            DEFAULT_PROMPT_EMB_DIR,
+        )
+        _DOWNLOADER_OK = True
+    except ImportError:
+        _DOWNLOADER_OK = False
 
 # ---------------------------------------------------------------------------
 # In-memory pipeline cache  {cache_key: pipeline_object}

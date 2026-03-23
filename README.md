@@ -92,7 +92,7 @@ pip install -r requirements.txt
 **Output video** is saved to `results/my_video/`.
 
 > 💡 **16 GB VRAM (RTX 5070 Ti / 4080)?** Use `bash sparkvsr_inference_16gb.sh`  
-> or install the **ComfyUI nodes** (see [ComfyUI section](#comfyui) below).
+> or clone this repo into `ComfyUI/custom_nodes/SparkVSR` for the **ComfyUI nodes** (see [ComfyUI section](#comfyui) below).
 
 ---
 
@@ -408,20 +408,27 @@ SparkVSR ships ComfyUI custom nodes with a layout identical to **SeedVR2.5**:
 
 ### Quick install
 
+Clone the repository **directly** into your `custom_nodes/` folder — no copy or symlink needed:
+
 ```bash
-# Copy nodes into ComfyUI
-cp -r comfyui_nodes  /path/to/ComfyUI/custom_nodes/SparkVSR
+# Option 1 — git clone (recommended, easy to update with git pull)
+cd /path/to/ComfyUI/custom_nodes
+git clone https://github.com/naxci1/SparkVSR
 
-# Windows (PowerShell — Administrator):
-New-Item -ItemType Junction `
-    -Path "C:\ComfyUI\custom_nodes\SparkVSR" `
-    -Target "C:\path\to\SparkVSR\comfyui_nodes"
+# Windows (PowerShell):
+cd C:\ComfyUI\custom_nodes
+git clone https://github.com/naxci1/SparkVSR
+```
 
-# Install dependencies into ComfyUI's Python env
-pip install diffusers>=0.30.0 transformers>=4.40.0 accelerate safetensors einops sentencepiece
+Then install the dependencies into ComfyUI's Python environment:
+
+```bash
+pip install diffusers>=0.30.0 transformers>=4.40.0 accelerate safetensors einops sentencepiece huggingface-hub
 ```
 
 Restart ComfyUI — the three SparkVSR nodes appear under the **SparkVSR** category.
+
+> 💡 **Auto-download**: On first run the **SparkVSR Load Pipeline** node will automatically download the SparkVSR weights (~5 GB) from HuggingFace if they are not found at the path you specify. Set `auto_download = True` (default) and point `model_path` at an empty or non-existent folder.
 
 ### Recommended settings for 16 GB VRAM (RTX 5070 Ti / 4080)
 
@@ -434,8 +441,6 @@ Restart ComfyUI — the three SparkVSR nodes appear under the **SparkVSR** categ
 | Configure VAE | `enable_slicing` | ✅ True |
 | Video Upscaler | `batch_size` | 49 |
 | Video Upscaler | `tile_size_h` / `tile_size_w` | 480 / 854 |
-
-See [`comfyui_nodes/README.md`](./comfyui_nodes/README.md) for the full node reference and workflow examples.
 
 ---
 
